@@ -52,8 +52,8 @@ type (
 	TargetGroup struct {
 		Portal     int    `json:"portal"`
 		Initiator  int    `json:"initiator"`
-		Auth       string `json:"auth"`
-		AuthMethod string `json:"authmethod"`
+		Auth       string `json:"auth,omitempty"`
+		AuthMethod string `json:"authmethod,omitempty"`
 	}
 
 	/* TargetOpts */
@@ -99,7 +99,6 @@ type (
 		Serial     string `json:"serial"`
 		Type       string `json:"type"`
 		Path       string `json:"path"`
-		FileSize   int    `json:"filesize"`
 		BlockSize  int    `json:"blocksize"`
 		PBlockSize bool   `json:"pblocksize"`
 		Comment    string `json:"comment"`
@@ -185,8 +184,6 @@ func (c *client) CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error) {
 		RO:        dev.RO,
 	}
 
-	targetextentopts := TargetExtentOpts{}
-
 	target, err := c.createTarget(targetopts)
 	if err != nil {
 		return nil, err
@@ -195,6 +192,12 @@ func (c *client) CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error) {
 	extent, err := c.createExtent(extentopts)
 	if err != nil {
 		return nil, err
+	}
+
+	targetextentopts := TargetExtentOpts{
+		LunID:  dev.LunID,
+		Target: target.ID,
+		Extent: extent.ID,
 	}
 
 	targetextent, err := c.createTargetExtent(targetextentopts)
@@ -239,7 +242,7 @@ func (c *client) DeleteISCSIDevice(tid, eid, teid int) error {
 }
 
 func (c *client) getTarget(tgt int) (*Target, error) {
-	url := c.parseurl(fmt.Sprintf("pool/iscsi/target/id/%d", tgt))
+	url := c.parseurl(fmt.Sprintf("iscsi/target/id/%d", tgt))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -261,7 +264,7 @@ func (c *client) getTarget(tgt int) (*Target, error) {
 }
 
 func (c *client) createTarget(tgt TargetOpts) (*Target, error) {
-	url := c.parseurl("pool/iscsi/target")
+	url := c.parseurl("iscsi/target")
 	bytesData, err := json.Marshal(tgt)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -289,11 +292,25 @@ func (c *client) createTarget(tgt TargetOpts) (*Target, error) {
 }
 
 func (c *client) deleteTarget(tgt int) error {
-	return nil
+	url := c.parseurl(fmt.Sprintf("iscsi/target/id/%d", tgt))
+	resp, code, err := c.delete(url)
+	if err != nil {
+		return &InternalError{err}
+	}
+
+	switch code {
+	case 200:
+		return nil
+
+	case 404:
+		return &NotFoundError{errors.New("Target not found")}
+	default:
+		return &InternalError{fmt.Errorf("Error Code: %d Message: %s", code, string(resp))}
+	}
 }
 
 func (c *client) getExtent(ext int) (*Extent, error) {
-	url := c.parseurl(fmt.Sprintf("pool/iscsi/extent/id/%d", ext))
+	url := c.parseurl(fmt.Sprintf("iscsi/extent/id/%d", ext))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -315,7 +332,7 @@ func (c *client) getExtent(ext int) (*Extent, error) {
 }
 
 func (c *client) createExtent(ext ExtentOpts) (*Extent, error) {
-	url := c.parseurl("pool/iscsi/extent")
+	url := c.parseurl("iscsi/extent")
 	bytesData, err := json.Marshal(ext)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -344,11 +361,25 @@ func (c *client) createExtent(ext ExtentOpts) (*Extent, error) {
 }
 
 func (c *client) deleteExtent(ext int) error {
-	return nil
+	url := c.parseurl(fmt.Sprintf("iscsi/extent/id/%d", ext))
+	resp, code, err := c.delete(url)
+	if err != nil {
+		return &InternalError{err}
+	}
+
+	switch code {
+	case 200:
+		return nil
+
+	case 404:
+		return &NotFoundError{errors.New("Extent not found")}
+	default:
+		return &InternalError{fmt.Errorf("Error Code: %d Message: %s", code, string(resp))}
+	}
 }
 
 func (c *client) getTargetExtent(tgtext int) (*TargetExtent, error) {
-	url := c.parseurl(fmt.Sprintf("pool/iscsi/targetextent/id/%d", tgtext))
+	url := c.parseurl(fmt.Sprintf("iscsi/targetextent/id/%d", tgtext))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -370,7 +401,7 @@ func (c *client) getTargetExtent(tgtext int) (*TargetExtent, error) {
 }
 
 func (c *client) createTargetExtent(tgtext TargetExtentOpts) (*TargetExtent, error) {
-	url := c.parseurl("pool/iscsi/targetextent")
+	url := c.parseurl("iscsi/targetextent")
 	bytesData, err := json.Marshal(tgtext)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -398,5 +429,19 @@ func (c *client) createTargetExtent(tgtext TargetExtentOpts) (*TargetExtent, err
 }
 
 func (c *client) deleteTargetExtent(tgtext int) error {
-	return nil
+	url := c.parseurl(fmt.Sprintf("iscsi/targetextent/id/%d", tgtext))
+	resp, code, err := c.delete(url)
+	if err != nil {
+		return &InternalError{err}
+	}
+
+	switch code {
+	case 200:
+		return nil
+
+	case 404:
+		return &NotFoundError{errors.New("TargetExtent not found")}
+	default:
+		return &InternalError{fmt.Errorf("Error Code: %d Message: %s", code, string(resp))}
+	}
 }
