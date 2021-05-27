@@ -16,15 +16,15 @@ type (
 		DeleteVolume(vol string) error
 
 		/* ISCSI Management */
-		GetISCSIDevice(tid, eid, teid int) (*ISCSIDevice, error)
+		GetISCSIDevice(id string) (*ISCSIDevice, error)
 		CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error)
-		DeleteISCSIDevice(tid, eid, teid int) error
+		DeleteISCSIDevice(id string) error
+
+		GetISCSIID(volpath string) string
 
 		/* Node Management */
-		/*
-			GetNode(node string) (Node, error)
-			SetNode(node Node) error
-		*/
+		GetNode(node string) (*Node, error)
+		SetNode(node Node) error
 	}
 
 	/* Implements the following functions:

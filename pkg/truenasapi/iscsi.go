@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type (
@@ -15,7 +16,7 @@ type (
 		Name           string
 		Alias          string
 		Mode           string
-		Portal         int
+		Portal         string
 		Initiator      int
 		Disk           string
 		Path           string
@@ -27,6 +28,7 @@ type (
 		TargetID       int
 		ExtentID       int
 		TargetExtentID int
+		IQN            string
 	}
 
 	/* ISCSIDeviceOpts */
@@ -121,18 +123,38 @@ type (
 )
 
 /* GetISCSIDevice gets (Target, Extent, and TargetExtent Association) */
-func (c *client) GetISCSIDevice(tid, eid, teid int) (*ISCSIDevice, error) {
-	target, err := c.getTarget(tid)
+func (c *client) GetISCSIDevice(vol string) (*ISCSIDevice, error) {
+	targets, err := c.getTargets()
 	if err != nil {
 		return nil, err
 	}
 
-	extent, err := c.getExtent(eid)
+	extents, err := c.getExtents()
 	if err != nil {
 		return nil, err
 	}
 
-	targetextent, err := c.getTargetExtent(teid)
+	var extent *Extent
+	for _, v := range extents {
+		if v.Name == vol {
+			extent = v
+			break
+		}
+	}
+
+	var target *Target
+	for _, v := range targets {
+		if v.Name == vol {
+			target = v
+			break
+		}
+	}
+
+	if extent == nil || target == nil {
+		return nil, &NotFoundError{errors.New("Unable to find ISCSI Device")}
+	}
+
+	targetextent, err := c.getTargetExtent(target.ID, extent.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +163,7 @@ func (c *client) GetISCSIDevice(tid, eid, teid int) (*ISCSIDevice, error) {
 		Name:           target.Name,
 		Alias:          target.Alias,
 		Mode:           target.Mode,
-		Portal:         target.Groups[0].Portal,
+		Portal:         string(target.Groups[0].Portal),
 		Initiator:      target.Groups[0].Initiator,
 		Disk:           extent.Disk,
 		Path:           extent.Path,
@@ -209,7 +231,7 @@ func (c *client) CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error) {
 		Name:           target.Name,
 		Alias:          target.Alias,
 		Mode:           target.Mode,
-		Portal:         target.Groups[0].Portal,
+		Portal:         string(target.Groups[0].Portal),
 		Initiator:      target.Groups[0].Initiator,
 		Disk:           extent.Disk,
 		Path:           extent.Path,
@@ -225,24 +247,29 @@ func (c *client) CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error) {
 }
 
 /* DeleteISCSIDevice deletes (Target, Extent, and TargetExtent Association) */
-func (c *client) DeleteISCSIDevice(tid, eid, teid int) error {
-	if err := c.deleteTargetExtent(teid); err != nil {
+func (c *client) DeleteISCSIDevice(volID string) error {
+	iscsi, err := c.GetISCSIDevice(volID)
+	if err != nil {
 		return err
 	}
 
-	if err := c.deleteTarget(tid); err != nil {
+	if err := c.deleteTargetExtent(iscsi.TargetExtentID); err != nil {
 		return err
 	}
 
-	if err := c.deleteExtent(eid); err != nil {
+	if err := c.deleteTarget(iscsi.TargetID); err != nil {
+		return err
+	}
+
+	if err := c.deleteExtent(iscsi.ExtentID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (c *client) getTarget(tgt int) (*Target, error) {
-	url := c.parseurl(fmt.Sprintf("iscsi/target/id/%d", tgt))
+func (c *client) getTargets() ([]*Target, error) {
+	url := c.parseurl(fmt.Sprintf("iscsi/target/id/%d"))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -250,7 +277,7 @@ func (c *client) getTarget(tgt int) (*Target, error) {
 
 	switch code {
 	case 200:
-		t := new(Target)
+		t := make([]*Target, 0)
 		if err = json.Unmarshal(resp, t); err != nil {
 			return nil, &InternalError{err}
 		}
@@ -309,8 +336,8 @@ func (c *client) deleteTarget(tgt int) error {
 	}
 }
 
-func (c *client) getExtent(ext int) (*Extent, error) {
-	url := c.parseurl(fmt.Sprintf("iscsi/extent/id/%d", ext))
+func (c *client) getExtents() ([]*Extent, error) {
+	url := c.parseurl(fmt.Sprintf("iscsi/extent"))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -318,7 +345,7 @@ func (c *client) getExtent(ext int) (*Extent, error) {
 
 	switch code {
 	case 200:
-		e := new(Extent)
+		e := make([]*Extent, 0)
 		if err = json.Unmarshal(resp, e); err != nil {
 			return nil, &InternalError{err}
 		}
@@ -378,8 +405,8 @@ func (c *client) deleteExtent(ext int) error {
 	}
 }
 
-func (c *client) getTargetExtent(tgtext int) (*TargetExtent, error) {
-	url := c.parseurl(fmt.Sprintf("iscsi/targetextent/id/%d", tgtext))
+func (c *client) getTargetExtent(tgt, ext int) (*TargetExtent, error) {
+	url := c.parseurl(fmt.Sprintf("iscsi/targetextent"))
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -387,12 +414,18 @@ func (c *client) getTargetExtent(tgtext int) (*TargetExtent, error) {
 
 	switch code {
 	case 200:
-		te := new(TargetExtent)
-		if err = json.Unmarshal(resp, te); err != nil {
+		tes := make([]*TargetExtent, 0)
+		if err = json.Unmarshal(resp, tes); err != nil {
 			return nil, &InternalError{err}
 		}
 
-		return te, nil
+		for _, v := range tes {
+			if v.Target == tgt && v.Extent == ext {
+				return v, nil
+			}
+		}
+
+		return nil, &NotFoundError{errors.New("Unable to find target extent")}
 	case 404:
 		return nil, &NotFoundError{errors.New("TargetExtent not found")}
 	default:
@@ -444,4 +477,9 @@ func (c *client) deleteTargetExtent(tgtext int) error {
 	default:
 		return &InternalError{fmt.Errorf("Error Code: %d Message: %s", code, string(resp))}
 	}
+}
+
+func (c *client) GetISCSIID(volpath string) string {
+	split := strings.Split(volpath, "/")
+	return split[len(split)-1]
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	logging "github.com/arturoguerra/go-logging"
+	"github.com/arturoguerra/truenas-csi/pkg/csi/provider"
+	"github.com/arturoguerra/truenas-csi/pkg/csi/service"
 	"github.com/arturoguerra/truenas-csi/pkg/truenasapi"
 )
 
@@ -18,6 +20,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	svc := service.New(logger, client)
+	provider.New(svc)
 
 	if err = client.DeleteVolume("rabbitTank/test/pain4"); err != nil {
 		fmt.Println(err)
@@ -58,7 +63,7 @@ func main() {
 	}
 	fmt.Println(iscsidevice)
 
-	iscsidevice2, err := client.GetISCSIDevice(iscsidevice.TargetID, iscsidevice.ExtentID, iscsidevice.TargetExtentID)
+	/*iscsidevice2, err := client.GetISCSIDevice(iscsidevice.TargetID, iscsidevice.ExtentID, iscsidevice.TargetExtentID)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -68,5 +73,5 @@ func main() {
 	if err = client.DeleteISCSIDevice(iscsidevice.TargetID, iscsidevice.ExtentID, iscsidevice.TargetExtentID); err != nil {
 		fmt.Println(err)
 	}
-
+	*/
 }
