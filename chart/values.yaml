@@ -1,0 +1,18 @@
+# Default values for kube-xcpng-csi.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+    repository: arturoguerra/truenas-csi
+    #    tag: latest
+
+# config:
+#     zones:
+#     - name: us-west-1
+#       hostid: "Host UUID"
+#       default: "Default Storage Repository"
+#       storage:
+#       - name: standard
+#         sr: "sr UUID"
+
+# serviceAccount: "Account Name"

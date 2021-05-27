@@ -1,0 +1,3 @@
+Config located at {{ template "name" . }} edit values according to your cluster settings:
+{{ toYaml .Values.config | indent 4 }}
+
