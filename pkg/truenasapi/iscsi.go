@@ -31,7 +31,7 @@ type (
 		IQN            string
 	}
 
-	/* ISCSIDeviceOpts */
+	/* internalISCSIDeviceOpts */
 	ISCSIDeviceOpts struct {
 		Name      string
 		Alias     string
@@ -120,6 +120,17 @@ type (
 		Extent int `json:"extent"`
 		Target int `json:"target"`
 	}
+
+	/* Global Target Global Configuration */
+	Global struct {
+		Basename           string   `json:"basename"`
+		IsnsServers        []string `json:"isns_servers"`
+		PoolAvailThreshold int      `json:"pool_avail_threshold"`
+		Alua               bool     `json:"alua"`
+	}
+
+	Portal struct {
+	}
 )
 
 /* GetISCSIDevice gets (Target, Extent, and TargetExtent Association) */
@@ -163,7 +174,7 @@ func (c *client) GetISCSIDevice(vol string) (*ISCSIDevice, error) {
 		Name:           target.Name,
 		Alias:          target.Alias,
 		Mode:           target.Mode,
-		Portal:         string(target.Groups[0].Portal),
+		Portal:         target.Groups[0].Portal,
 		Initiator:      target.Groups[0].Initiator,
 		Disk:           extent.Disk,
 		Path:           extent.Path,
@@ -269,7 +280,7 @@ func (c *client) DeleteISCSIDevice(volID string) error {
 }
 
 func (c *client) getTargets() ([]*Target, error) {
-	url := c.parseurl(fmt.Sprintf("iscsi/target/id/%d"))
+	url := c.parseurl("iscsi/target")
 	resp, code, err := c.get(url)
 	if err != nil {
 		return nil, &InternalError{err}
@@ -477,6 +488,30 @@ func (c *client) deleteTargetExtent(tgtext int) error {
 	default:
 		return &InternalError{fmt.Errorf("Error Code: %d Message: %s", code, string(resp))}
 	}
+}
+
+func (c *client) getGlobal() (*Global, error) {
+	url := c.parseurl("iscsi/global")
+	resp, code, err := c.get(url)
+	if err != nil {
+		return nil, &InternalError{err}
+	}
+
+	if code == 200 {
+		global := new(Global)
+		if err := json.Unmarshal(resp, global); err != nil {
+			return nil, &InternalError{err}
+		}
+
+		return global, nil
+	}
+
+	return nil, &InternalError{fmt.Errorf("Error Code: %d", code)}
+
+}
+
+func (c *client) getPortal(id int) (*Portal, error) {
+	return nil, nil
 }
 
 func (c *client) GetISCSIID(volpath string) string {

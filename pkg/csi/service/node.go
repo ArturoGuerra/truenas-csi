@@ -60,17 +60,13 @@ func (s *service) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeR
 		CheckInterval: 1,
 	}
 
+	// Connects iscsi device to node
 	device, err := iscsi.Connect(conn)
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
-	/*
-		Attach drive
-		Format if needed
-		Mount to stage target
-	*/
 
-	// Mouting
+	// Mouting ISCSI Drive to staging path
 	opts := []string{}
 	if err := s.Mounter.Mount(stagingTargetPath, device, volumeContext.FSType, opts); err != nil {
 		s.Logger.Error(err)

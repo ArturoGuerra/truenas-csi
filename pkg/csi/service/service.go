@@ -36,8 +36,9 @@ type (
 	}
 
 	service struct {
-		TClient   truenasapi.Client
 		NodeID    string
+		ClusterID string
+		TClient   truenasapi.Client
 		Logger    *logrus.Logger
 		Validator *validator.Validate
 		Mounter   mounter.Mounter
@@ -74,6 +75,8 @@ func init() {
 // New : returns a new instance of the csi driver
 func New(logger *logrus.Logger, tnapi truenasapi.Client) Service {
 	return &service{
+		NodeID:    os.Getenv("NODE_ID"),
+		ClusterID: os.Getenv("CLUSTER_ID"),
 		TClient:   tnapi,
 		Logger:    logger,
 		Validator: validator.New(),

@@ -64,3 +64,12 @@ func New(logger *logrus.Logger, cfg *Config) (Client, error) {
 
 	return c, nil
 }
+
+func NewDefault(logger *logrus.Logger) (Client, error) {
+	config, err := NewDefaultConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return New(logger, config)
+}

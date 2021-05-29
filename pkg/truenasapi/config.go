@@ -1,5 +1,7 @@
 package truenasapi
 
+import "os"
+
 /* Config (Endpoint, api key, etc) */
 type Config struct {
 	Host   string
@@ -7,9 +9,8 @@ type Config struct {
 }
 
 func NewDefaultConfig() (*Config, error) {
-
 	return &Config{
-		Host:   "10.50.1.20",
-		APIKey: "3-YKjefi3YT22oOfpVdOXaognmHxvA60xSOoP0Dj1fbJ3qdJCPs1nZtqbgDhtT4Wgr",
+		Host:   os.Getenv("TRUENAS_HOST"),
+		APIKey: os.Getenv("TRUENAS_API_KEY"),
 	}, nil
 }
