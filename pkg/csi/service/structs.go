@@ -3,9 +3,9 @@ package service
 type (
 	// Params Example: StorageClass Parameters on k8s
 	Params struct {
-		Dataset     string `json:"dataset,required"`
-		FSType      string `json:"fstype,required"`
-		Compression string `json:"compression,required"`
+		Dataset     string `json:"dataset"`
+		FSType      string `json:"fstype"`
+		Compression string `json:"compression"`
 	}
 
 	/* VolumeContext
