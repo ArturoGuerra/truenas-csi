@@ -93,8 +93,7 @@ func (s *service) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVol
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
 
-	iscsid := s.TClient.GetISCSIID(volID)
-	iscsidevice, err := s.TClient.GetISCSIDevice(iscsid)
+	iscsidevice, err := s.TClient.GetISCSIDevice(volID)
 	if err != nil {
 		if e, ok := err.(*truenasapi.NotFoundError); !ok {
 			return nil, status.Error(codes.Internal, e.Error())
@@ -130,8 +129,8 @@ func (s *service) NodePublishVolume(ctx context.Context, req *csi.NodePublishVol
 	targetPath := req.GetTargetPath()
 
 	/* Check if target is a path and creates it if its not */
-	if pathExists, err := s.Mounter.PathExists(targetPath); !pathExists {
-		if err = s.Mounter.MakeDir(targetPath); err != nil {
+	if pathExists, _ := s.Mounter.PathExists(targetPath); !pathExists {
+		if err := s.Mounter.MakeDir(targetPath); err != nil {
 			return nil, status.Error(codes.Internal, err.Error())
 		}
 	}

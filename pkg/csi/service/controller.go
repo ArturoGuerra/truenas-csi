@@ -185,21 +185,20 @@ func (s *service) ControllerPublishVolume(ctx context.Context, req *csi.Controll
 	}
 
 	// ISCSI ID
-	iscsid := s.TClient.GetISCSIID(volume.ID)
-	iscsidevice, err := s.TClient.GetISCSIDevice(iscsid)
+	iscsidevice, err := s.TClient.GetISCSIDevice(volume.ID)
 	if err != nil {
 		switch e := err.(type) {
 		case *truenasapi.NotFoundError:
 			// volume doesnt exists
 			iscsiopts := truenasapi.ISCSIDeviceOpts{
 				Name:      volctx.Name,
-				Alias:     "",
-				Mode:      "ISCSI",
-				Initiator: node.ID,
-				Type:      "DISK",
+				Node:      node,
+				Comment:   volctx.Name,
 				Disk:      volume.ID,
 				BlockSize: volume.VolBlockSize.Parsed,
+				Enabled:   true,
 				RO:        false,
+				LunID:     1,
 			}
 
 			iscsidevice, err := s.TClient.CreateISCSIDevice(iscsiopts)
@@ -223,7 +222,7 @@ func (s *service) ControllerPublishVolume(ctx context.Context, req *csi.Controll
 
 	}
 
-	if iscsidevice.Initiator != node.ID {
+	if iscsidevice.Node.ID != node.ID {
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 

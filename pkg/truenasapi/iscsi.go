@@ -127,191 +127,172 @@ type (
 
 	ISCSIDeviceOpts struct {
 		Name      string
-		Alias     string
-		Mode      string
-		Portal    int
-		Initiator int
-		Disk      string
-		Path      string
-		BlockSize int
+		Node      *Node
 		Comment   string
+		Disk      string
+		BlockSize int
 		Enabled   bool
-		LunID     int
 		RO        bool
-		Type      string
+		LunID     int
 	}
 
 	/* ISCSIDevice */
 	ISCSIDevice struct {
 		Name           string
 		Node           *Node
-		Mode           string
 		Disk           string
 		BlockSize      int
-		Comment        string
 		Enabled        bool
 		RO             bool
 		TargetID       int
 		ExtentID       int
 		TargetExtentID int
+		Portal         string
 		IQN            string
 		LunID          int
 	}
 )
 
-func (c *client) GetISCSIID(volpath string) string {
+func (c *client) getISCSIID(volpath string) string {
 	split := strings.Split(volpath, "/")
 	return split[len(split)-1]
 }
 
 /* GetISCSIDevice gets (Target, Extent, and TargetExtent Association) */
 func (c *client) GetISCSIDevice(vol string) (*ISCSIDevice, error) {
-	return nil, nil
-	/*	targets, err := c.getTargets()
-		if err != nil {
-			return nil, err
-		}
+	id := c.getISCSIID(vol)
 
-		extents, err := c.getExtents()
-		if err != nil {
-			return nil, err
-		}
+	targets, err := c.getTargets()
+	if err != nil {
+		return nil, err
+	}
 
-		var extent *Extent
-		for _, v := range extents {
-			if v.Name == vol {
-				extent = v
-				break
-			}
+	var target *Target
+	for _, v := range targets {
+		if v.Name == id {
+			target = v
+			break
 		}
+	}
 
-		var target *Target
-		for _, v := range targets {
-			if v.Name == vol {
-				target = v
-				break
-			}
+	extents, err := c.getExtents()
+	if err != nil {
+		return nil, err
+	}
+
+	var extent *Extent
+	for _, v := range extents {
+		if v.Name == id {
+			extent = v
+			break
 		}
+	}
 
-		if extent == nil || target == nil {
-			return nil, &NotFoundError{errors.New("Unable to find ISCSI Device")}
-		}
+	if extent == nil || target == nil {
+		return nil, &NotFoundError{errors.New("unable to find ISCSI Device")}
+	}
 
-		targetextent, err := c.getTargetExtent(target.ID, extent.ID)
-		if err != nil {
-			return nil, err
-		}
+	targetextent, err := c.getTargetExtent(target.ID, extent.ID)
+	if err != nil {
+		return nil, err
+	}
 
-		return &ISCSIDevice{
-			Name:           target.Name,
-			Alias:          target.Alias,
-			Mode:           target.Mode,
-			Portal:         target.Groups[0].Portal,
-			Initiator:      target.Groups[0].Initiator,
-			Disk:           extent.Disk,
-			Path:           extent.Path,
-			BlockSize:      extent.BlockSize,
-			Comment:        extent.Comment,
-			Enabled:        extent.Enabled,
-			RO:             extent.RO,
-			LunID:          targetextent.LunID,
-			TargetID:       target.ID,
-			ExtentID:       extent.ID,
-			TargetExtentID: targetextent.ID,
-		}, nil
-	*/
+	return &ISCSIDevice{
+		Name:           target.Name,
+		Disk:           extent.Disk,
+		BlockSize:      extent.BlockSize,
+		Enabled:        extent.Enabled,
+		RO:             extent.RO,
+		TargetID:       target.ID,
+		ExtentID:       extent.ID,
+		TargetExtentID: targetextent.ID,
+		Portal:         c.portalAddr,
+		IQN:            fmt.Sprintf("%s/%s", c.baseIQN, target.Name),
+		LunID:          targetextent.LunID,
+	}, nil
 }
 
 /* CreateISCSIDevice creates (Target, Extent, and TargetExtent Association) */
 func (c *client) CreateISCSIDevice(dev ISCSIDeviceOpts) (*ISCSIDevice, error) {
-	return nil, nil
-	/*
-		group := &TargetGroup{
-			Portal:    dev.Portal,
-			Initiator: dev.Initiator,
-		}
+	group := &TargetGroup{
+		Portal:    c.portal,
+		Initiator: dev.Node.ID,
+	}
 
-		targetopts := TargetOpts{
-			Name:  dev.Name,
-			Alias: dev.Alias,
-			Mode:  dev.Mode,
-			Groups: []*TargetGroup{
-				group,
-			},
-		}
+	targetopts := TargetOpts{
+		Name:  dev.Name,
+		Alias: "",
+		Mode:  "ISCSI",
+		Groups: []*TargetGroup{
+			group,
+		},
+	}
 
-		extentopts := ExtentOpts{
-			Name:      dev.Name,
-			Type:      dev.Type,
-			Disk:      dev.Disk,
-			Path:      dev.Path,
-			Comment:   dev.Comment,
-			BlockSize: dev.BlockSize,
-			Enabled:   dev.Enabled,
-			RO:        dev.RO,
-		}
+	extentopts := ExtentOpts{
+		Name:      dev.Name,
+		Type:      "DISK",
+		Disk:      fmt.Sprintf("zvol/%s", dev.Disk),
+		Path:      fmt.Sprintf("zvol/%s", dev.Disk),
+		Comment:   dev.Comment,
+		BlockSize: dev.BlockSize,
+		Enabled:   dev.Enabled,
+		RO:        dev.RO,
+	}
 
-		target, err := c.createTarget(targetopts)
-		if err != nil {
-			return nil, err
-		}
+	target, err := c.createTarget(targetopts)
+	if err != nil {
+		return nil, err
+	}
 
-		extent, err := c.createExtent(extentopts)
-		if err != nil {
-			return nil, err
-		}
+	extent, err := c.createExtent(extentopts)
+	if err != nil {
+		return nil, err
+	}
 
-		targetextentopts := TargetExtentOpts{
-			LunID:  dev.LunID,
-			Target: target.ID,
-			Extent: extent.ID,
-		}
+	targetextentopts := TargetExtentOpts{
+		LunID:  dev.LunID,
+		Target: target.ID,
+		Extent: extent.ID,
+	}
 
-		targetextent, err := c.createTargetExtent(targetextentopts)
-		if err != nil {
-			return nil, err
-		}
+	targetextent, err := c.createTargetExtent(targetextentopts)
+	if err != nil {
+		return nil, err
+	}
 
-		return &ISCSIDevice{
-			Name:           target.Name,
-			Alias:          target.Alias,
-			Mode:           target.Mode,
-			Portal:         string(target.Groups[0].Portal),
-			Initiator:      target.Groups[0].Initiator,
-			Disk:           extent.Disk,
-			Path:           extent.Path,
-			BlockSize:      extent.BlockSize,
-			Comment:        extent.Comment,
-			Enabled:        extent.Enabled,
-			RO:             extent.RO,
-			LunID:          targetextent.LunID,
-			TargetID:       target.ID,
-			ExtentID:       extent.ID,
-			TargetExtentID: targetextent.ID,
-		}, nil
-	*/
+	return &ISCSIDevice{
+		Name:           target.Name,
+		Disk:           extent.Disk,
+		BlockSize:      extent.BlockSize,
+		Enabled:        extent.Enabled,
+		RO:             extent.RO,
+		TargetID:       target.ID,
+		ExtentID:       extent.ID,
+		TargetExtentID: targetextent.ID,
+		Portal:         c.portalAddr,
+		IQN:            fmt.Sprintf("%s/%s", c.baseIQN, target.Name),
+		LunID:          targetextent.LunID,
+	}, nil
 }
 
 /* DeleteISCSIDevice deletes (Target, Extent, and TargetExtent Association) */
 func (c *client) DeleteISCSIDevice(volID string) error {
-	/*
-		iscsi, err := c.GetISCSIDevice(volID)
-		if err != nil {
-			return err
-		}
+	iscsi, err := c.GetISCSIDevice(volID)
+	if err != nil {
+		return err
+	}
 
-		if err := c.deleteTargetExtent(iscsi.TargetExtentID); err != nil {
-			return err
-		}
+	if err := c.deleteTargetExtent(iscsi.TargetExtentID); err != nil {
+		return err
+	}
 
-		if err := c.deleteTarget(iscsi.TargetID); err != nil {
-			return err
-		}
+	if err := c.deleteTarget(iscsi.TargetID); err != nil {
+		return err
+	}
 
-		if err := c.deleteExtent(iscsi.ExtentID); err != nil {
-			return err
-		}
-	*/
+	if err := c.deleteExtent(iscsi.ExtentID); err != nil {
+		return err
+	}
 	return nil
 }
 
