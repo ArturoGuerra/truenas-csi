@@ -221,10 +221,10 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 		// Volume already exists - check if compatible (idempotency)
 		var existingCapacity int64
 		if existingDataset.Type == "VOLUME" {
-			// iSCSI ZVOL - use Volsize
+			// ZVOL - use Volsize
 			existingCapacity = existingDataset.Volsize
 		} else {
-			// NFS filesystem - use RefQuota
+			// Dataset - use RefQuota
 			existingCapacity = existingDataset.RefQuota
 		}
 
@@ -265,9 +265,12 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 	}
 
 	var volInfo *VolumeInfo
-	if protocol == ProtocolISCSI {
+	switch protocol {
+	case ProtocolNVMEeoF:
+		volInfo, err = s.createNVMeoFVolume(ctx, volumeID, datasetPath, requiredBytes, parameters)
+	case ProtocolISCSI:
 		volInfo, err = s.createISCSIVolume(ctx, volumeID, datasetPath, requiredBytes, parameters)
-	} else {
+	default:
 		volInfo, err = s.createNFSVolume(ctx, volumeID, datasetPath, requiredBytes, parameters)
 	}
 
@@ -290,6 +293,58 @@ func (s *ControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolu
 
 	s.driver.Log().V(LogLevelDebug).Info("Volume created successfully", "volumeId", volumeID)
 	return resp, nil
+}
+
+// createZVolVolume creates a ZVol.
+func (s *ControllerServer) createZVolVolume(ctx context.Context, volumeID, datasetPath string, capacityBytes int64, parameters map[string]string) (*client.Dataset, error) {
+	compression := "LZ4"
+	if val, ok := parameters["compression"]; ok {
+		compression = strings.ToUpper(val)
+	}
+
+	volblocksize := "16K"
+	if val, ok := parameters["volblocksize"]; ok {
+		volblocksize = val
+	}
+
+	datasetOpts := &client.DatasetCreateOptions{
+		Name:         datasetPath,
+		Type:         "VOLUME",
+		Volsize:      capacityBytes,
+		Volblocksize: volblocksize,
+		Compression:  compression,
+		Properties:   make(map[string]any),
+	}
+
+	for key, value := range parameters {
+		if propName, found := strings.CutPrefix(key, "zfs."); found {
+			datasetOpts.Properties[propName] = value
+		}
+	}
+
+	// Add encryption options if configured
+	if encOpts := parseEncryptionOptions(parameters); encOpts != nil {
+		datasetOpts.Encryption = true
+		datasetOpts.EncryptionOptions = encOpts
+		inheritEncryption := false
+		datasetOpts.InheritEncryption = &inheritEncryption
+		s.driver.Log().V(LogLevelDebug).Info("Enabling encryption for ZVOL", "dataset", datasetPath, "algorithm", encOpts.Algorithm)
+	}
+
+	dataset, err := s.driver.Client().CreateDataset(ctx, datasetOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dataset %s: %w", datasetPath, err)
+	}
+	return dataset, nil
+}
+
+// createNVMeoFVolume creates a NVMe over fabric volume.
+func (s *ControllerServer) createNVMeoFVolume(ctx context.Context, volumeID, datasetPath string, capacityBytes in64, parameters map[string]string) (*VolumeInfo, error) {
+	_, err := s.createZVolVolume(ctx, volumeID, datasetPath, capacityBytes, parameters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ZVOL: %w", err)
+	}
+
 }
 
 // createNFSVolume creates a ZFS filesystem dataset and NFS share for the volume.
@@ -422,41 +477,7 @@ func makeISCSIExtentName(volumeID string) string {
 
 // createISCSIVolume creates a ZVOL with iSCSI target, extent, and optional CHAP authentication.
 func (s *ControllerServer) createISCSIVolume(ctx context.Context, volumeID, datasetPath string, capacityBytes int64, parameters map[string]string) (*VolumeInfo, error) {
-	compression := "LZ4"
-	if val, ok := parameters["compression"]; ok {
-		compression = strings.ToUpper(val)
-	}
-
-	volblocksize := "16K"
-	if val, ok := parameters["volblocksize"]; ok {
-		volblocksize = val
-	}
-
-	datasetOpts := &client.DatasetCreateOptions{
-		Name:         datasetPath,
-		Type:         "VOLUME",
-		Volsize:      capacityBytes,
-		Volblocksize: volblocksize,
-		Compression:  compression,
-		Properties:   make(map[string]any),
-	}
-
-	for key, value := range parameters {
-		if propName, found := strings.CutPrefix(key, "zfs."); found {
-			datasetOpts.Properties[propName] = value
-		}
-	}
-
-	// Add encryption options if configured
-	if encOpts := parseEncryptionOptions(parameters); encOpts != nil {
-		datasetOpts.Encryption = true
-		datasetOpts.EncryptionOptions = encOpts
-		inheritEncryption := false
-		datasetOpts.InheritEncryption = &inheritEncryption
-		s.driver.Log().V(LogLevelDebug).Info("Enabling encryption for ZVOL", "dataset", datasetPath, "algorithm", encOpts.Algorithm)
-	}
-
-	_, err := s.driver.Client().CreateDataset(ctx, datasetOpts)
+	_, err := s.createZVolVolume(ctx, volumeID, datasetPath, capacityBytes, parameters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ZVOL: %w", err)
 	}

@@ -24,6 +24,37 @@ const (
 	methodNFSDelete = "sharing.nfs.delete"
 )
 
+// TrueNAS API method names for NVMeoF
+const (
+	methodNVMETHostCreate               = "nvmet.host.create"
+	methodNVMETHostDelete               = "nvmet.host.delete"
+	methodNVMETHostDhchapDhgroupChoices = "nvmet.host.dhchap_dhgroup_choices"
+	methodNVMETHostDhchapHashChoices    = "nvmet.host.dhchap_hash_choices"
+	methodNVMETHostGenerateKey          = "nvmet.host.generate_key"
+	methodNVMETHostQuery                = "nvmet.host.query"
+	methodNVMETHostUpdate               = "nvmet.host.update"
+	methodNVMETHostSubsysCreate         = "nvmet.host_subsys.create"
+	methodNVMETHostSubsysDelete         = "nvmet.host_subsys.delete"
+	methodNVMETHostSubsysGet            = "nvmet.host_subsys.get_instance"
+	methodNVMETHostSubsysUpdate         = "nvmet.host_subsys.update"
+	methodNVMETHostSubsysQuery          = "nvmet.host_subsys.query"
+	methodNVMETNamespaceCreate          = "nvmet.namespace.create"
+	methodNVMETNamespaceDelete          = "nvmet.namespace.delete"
+	methodNVMETNamespaceGet             = "nvmet.namespace.get_instance"
+	methodNVMETNamespaceUpdate          = "nvmet.namespace.update"
+	methodNVMETNamespaceQuery           = "nvmet.namespace.query"
+	methodNVMETPortCreate               = "nvmet.port.create"
+	methodNVMETPortQuery                = "nvmet.port.query"
+	methodNVMETPortDelete               = "nvmet.port.delete"
+	methodNVMETPortUpdate               = "nvmet.port.update"
+	methodNVMETPortGet                  = "nvmet.port.get_instance"
+	methodNVMETPortSubsysCreate         = "nvmet.port_subsys.create"
+	methodNVMETPortSubsysDelete         = "nvmet.port_subsys.delete"
+	methodNVMETPortSubsysGet            = "nvmet.port_subsys.get_instance"
+	methodNVMETPortSubsysUpdate         = "nvmet.port_subsys.update"
+	methodNVMETPortSubsysQuery          = "nvmet.port_subsys.query"
+)
+
 // TrueNAS API method names for iSCSI
 const (
 	methodISCSITargetCreate       = "iscsi.target.create"
@@ -85,13 +116,13 @@ type Dataset struct {
 	Available       int64          `json:"available"`
 	RefQuota        int64          `json:"refquota"`
 	RefReservation  int64          `json:"refreservation"`
-	Volsize         int64          `json:"volsize"`         // For ZVOLs (iSCSI volumes)
-	Compression     any            `json:"compression"`     // Can be string or object in TrueNAS
-	Deduplication   any            `json:"deduplication"`   // Can be string or object in TrueNAS
-	Sync            any            `json:"sync"`            // Can be string or object in TrueNAS
-	RecordSize      any            `json:"recordsize"`      // Can be string or object in TrueNAS
-	ACLMode         any            `json:"aclmode"`         // Can be string or object in TrueNAS
-	ACLType         any            `json:"acltype"`         // Can be string or object in TrueNAS
+	Volsize         int64          `json:"volsize"`       // For ZVOLs (iSCSI volumes)
+	Compression     any            `json:"compression"`   // Can be string or object in TrueNAS
+	Deduplication   any            `json:"deduplication"` // Can be string or object in TrueNAS
+	Sync            any            `json:"sync"`          // Can be string or object in TrueNAS
+	RecordSize      any            `json:"recordsize"`    // Can be string or object in TrueNAS
+	ACLMode         any            `json:"aclmode"`       // Can be string or object in TrueNAS
+	ACLType         any            `json:"acltype"`       // Can be string or object in TrueNAS
 	ExtraProperties map[string]any `json:"extra_properties,omitempty"`
 }
 
@@ -207,6 +238,127 @@ type NFSShareCreateOptions struct {
 	Networks        []string `json:"networks,omitempty"`
 	ExposeSnapshots bool     `json:"expose_snapshots,omitempty"`
 }
+
+type (
+	NVMeTNamespaceCreate struct {
+		Nsid       *int   `json:"nsid,omitempty"`
+		DeviceType string `json:"device_type"`
+		DevicePath string `json:"device_path"`
+		Filesize   *int64 `json:"filesize,omitempty"`
+		Enabled    bool   `json:"enabled"`
+		SubsysID   int    `json:"subsys_id"`
+	}
+
+	NVMeTNamespaceUpdate struct {
+		Nsid       *int    `json:"nsid,omitempty"`
+		DeviceType *string `json:"device_type,omitempty"`
+		DevicePath *string `json:"device_path,omitempty"`
+		Filesize   *int64  `json:"filesize,omitempty"`
+		Enabled    *bool   `json:"enabled,omitempty"`
+	}
+
+	NVMeTNamespace struct {
+		ID         int         `json:"id"`
+		Nsid       *string     `json:"nsid,omitempty"`
+		Subsys     NVMeTSubsys `json:"subsys"`
+		DeviceType string      `json:"device_type" validate:"oneof=ZVOL FILE"`
+		DevicePath string      `json:"device_path"`
+		Filesize   *int64      `json:"filesize,omitempty" validate:"required_if=DeviceType FILE"`
+		DeviceUUID string      `json:"device_uuid"`
+		Enabled    bool        `json:"enabled"`
+		Locked     *bool       `json:"locked,omitempty"`
+	}
+)
+
+type (
+	NVMeTPortCreate struct {
+		AddrTrtype     string  `json:"addr_trtype" validate:"oneof=TCP RDMA FC"`
+		AddrTrsvcid    *string `json:"addr_trsvcid,omitempty"`
+		AddrTraddr     string  `json:"addr_traddr"`
+		InlineDataSize *string `json:"inline_data_size,omitempty"`
+		MaxQueueSize   *int    `json:"max_queue_size,omitempty"`
+		PiEnable       *bool   `json:"pi_enable,omitempty"`
+		Enabled        bool    `json:"enabled"`
+	}
+
+	NVMeTPortUpdate struct {
+		AddrTrtype     *string `json:"addr_trtype,omitempty" validate:"oneof=TCP RDMA FC"`
+		AddrTrsvcid    *string `json:"addr_trsvcid,omitempty"`
+		AddrTraddr     *string `json:"addr_traddr,omitempty"`
+		InlineDataSize *string `json:"inline_data_size,omitempty"`
+		MaxQueueSize   *int    `json:"max_queue_size,omitempty"`
+		PiEnable       *bool   `json:"pi_enable,omitempty"`
+		Enabled        *bool   `json:"enabled,omitempty"`
+	}
+
+	NVMeTPort struct {
+		ID             int    `json:"id"`
+		Index          int    `json:"index"`
+		AddrTrType     string `json:"addr_trtype" validate:"oneof=TCP RDMA FC"`
+		AddrTrsvcid    string `json:"addr_trsvcid"`
+		AddrTraddr     string `json:"addr_traddr"`
+		AddrAdrfam     string `json:"addr_adrfam" validate:"oneof=IPV4 IPV6 FC"`
+		InlineDataSize *int   `json:"inline_data_size,omitempty"`
+		MaxQueueSize   *int   `json:"max_queue_size,omitempty"`
+		PiEnable       *bool  `json:"pi_enable,omitempty"`
+		Enabled        bool   `json:"enabled"`
+	}
+)
+
+type (
+	NVMeTPortSubsysCreate struct {
+		PortID   int `json:"port_id" validate:"required"`
+		SubsysID int `json:"subsys_id" validate:"required"`
+	}
+
+	NVMeTPortSubsysUpdate struct {
+		PortID   int `json:"port_id" validate:"required"`
+		SubsysID int `json:"subsys_id" validate:"required"`
+	}
+
+	NVMeTPortSubsys struct {
+		ID       int         `json:"id"`
+		PortID   NVMeTPort   `json:"port_id"`
+		SubsysID NVMeTSubsys `json:"subsys_id"`
+	}
+)
+
+type (
+	NVMeTSubsysCreate struct {
+		Name         string  `json:"name"`
+		Subnqn       *string `json:"subnqn,omitempty"`
+		AllowAnyHost bool    `json:"allow_any_host"`
+		PiEnable     *bool   `json:"pi_enable,omitempty"`
+		QidMax       *int    `json:"qid_max,omitempty"`
+		IeeeOui      *string `json:"ieee_oui,omitempty"`
+		Ana          *bool   `json:"ana,omitempty"`
+	}
+
+	NVMeTSubsysUpdate struct {
+		Name         *string `json:"name,omitempty"`
+		Subnqn       *string `json:"subnqn,omitempty"`
+		AllowAnyHost *bool   `json:"allow_any_host,omitempty"`
+		PiEnable     *bool   `json:"pi_enable,omitempty"`
+		QidMax       *int    `json:"qid_max,omitempty"`
+		IeeeOui      *string `json:"ieee_oui,omitempty"`
+		Ana          *bool   `json:"ana,omitempty"`
+	}
+
+	NVMeTSubsys struct {
+		ID           int      `json:"id"`
+		Name         string   `json:"name"`
+		Subnqn       *string  `json:"subnqn,omitempty"`
+		Serial       string   `json:"serial"`
+		AllowAnyHost bool     `json:"allow_any_host"`
+		PiEnable     *bool    `json:"pi_enable,omitempty"`
+		QidMax       *int     `json:"qid_max,omitempty"`
+		IeeeOui      *string  `json:"ieee_oui,omitempty"`
+		Ana          *bool    `json:"ana,omitempty"`
+		Hosts        []string `json:"hosts,omitempty"`
+		Namespaces   []int    `json:"namespaces,omitempty"`
+		Ports        []int    `json:"ports,omitempty"`
+	}
+)
 
 // ISCSITarget represents an iSCSI target in TrueNAS.
 type ISCSITarget struct {
@@ -399,7 +551,7 @@ type SnapshotTask struct {
 type SnapshotTaskSchedule struct {
 	Minute string `json:"minute"`
 	Hour   string `json:"hour"`
-	Dom    string `json:"dom"`   // Day of month
+	Dom    string `json:"dom"` // Day of month
 	Month  string `json:"month"`
 	Dow    string `json:"dow"`   // Day of week
 	Begin  string `json:"begin"` // Start time window
